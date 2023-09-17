@@ -4,23 +4,44 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.Size;
 import android.view.SurfaceView;
+import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.TextView;
 
-import com.example.capturer.CameraHolder;
+import java.net.Socket;
+
 
 public class MainActivity extends AppCompatActivity {
+    private String TAG = "MainActivity";
     private CameraHolder cameraHolder;
-    private SurfaceView surfaceView;
+    private TextView textView;
+    Analyser analyser;
+    private Server server;
     @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
 
-        surfaceView = findViewById(R.id.sur);
-        cameraHolder = new CameraHolder(this, new Size(640, 480), new Analyser(this), surfaceView.getHolder());
-        cameraHolder.startCapture();
+        textView = findViewById(R.id.ip);
+
+        analyser = new Analyser(this);
+        server = new Server(new Server.Callback() {
+            @Override
+            public void onConnection(Socket socket) {
+                Log.i(TAG, "onConnection");
+                analyser.setConnection(socket);
+                textView.setText("Connected");
+            }
+        });
+        new Thread(server).start();
+
+        textView.setText("IP: " + Utils.getIPAddress(true));
+        cameraHolder = new CameraHolder(this, new Size(1920, 1080), analyser);
     }
 
     @Override
@@ -38,6 +59,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        //cameraHolder.startCapture();
+        cameraHolder.startCapture();
     }
 }

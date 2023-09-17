@@ -10,6 +10,7 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.ImageReader;
 import android.util.Log;
 import android.util.Range;
@@ -19,6 +20,7 @@ import android.view.SurfaceHolder;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
+import java.net.Socket;
 import java.util.Collections;
 
 public class CameraHolder {
@@ -30,16 +32,15 @@ public class CameraHolder {
     private ImageReader mImageReader;
     private Context context;
     private Long exposureTime = null;
+    private Integer iso = null;
 
-    private SurfaceHolder surfaceHolder;
 
-    public CameraHolder(Context context, Size size, ImageReader.OnImageAvailableListener listener, SurfaceHolder surfaceHolder) {
+    public CameraHolder(Context context, Size size, ImageReader.OnImageAvailableListener listener) {
         mSize = size;
         this.context = context;
         mCameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(), ImageFormat.YUV_420_888, 2);
+        mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(), ImageFormat.YUV_420_888, 4);
         mImageReader.setOnImageAvailableListener(listener, null);
-        surfaceHolder = surfaceHolder;
     }
 
     public void stop() {
@@ -52,6 +53,7 @@ public class CameraHolder {
         }
     }
 
+
     public void startCapture() {
         try {
             String[] cameraIdList = mCameraManager.getCameraIdList();
@@ -61,10 +63,19 @@ public class CameraHolder {
                     try {
                         mCameraDevice = cameraDevice;
                         CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+
                         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
                         builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureTime);
+                        // set iso
+                        builder.set(CaptureRequest.SENSOR_SENSITIVITY, iso);
+                        // set auto focus
+                        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 
-                        // set fps to 30
+
+
+                        // set fps
+                        builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(30, 30));
 
                         builder.addTarget(mImageReader.getSurface());
                         //builder.addTarget(surfaceHolder.getSurface());
@@ -125,7 +136,17 @@ public class CameraHolder {
             CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(camId);
             Range<Long> exposureRange = characteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
             Log.i(TAG, "exposure range: " + exposureRange.getLower() + " - " + exposureRange.getUpper());
-            exposureTime = exposureRange.getLower();
+            //exposureTime = exposureRange.getLower() + (exposureRange.getUpper() - exposureRange.getLower()) / 50;
+            exposureTime = 6000000L;
+            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
+            for (Size size : sizes) {
+                Log.i(TAG, "size: " + size.getWidth() + "x" + size.getHeight());
+            }
+            // get iso range
+            Range<Integer> isoRange = characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);
+            Log.i(TAG, "iso range: " + isoRange.getLower() + " - " + isoRange.getUpper());
+            iso = isoRange.getUpper();
 
             mCameraManager.openCamera(cameraIdList[0], callback, null);
         } catch (Exception e) {
